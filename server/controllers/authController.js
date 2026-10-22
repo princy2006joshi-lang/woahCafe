@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
+import { isInstitutionalEmail } from '../utils/email.js'
 
 function publicUser(user) {
   return {
@@ -30,7 +31,7 @@ function setLoginCookie(response, user) {
 }
 
 export async function registerStudent(request, response) {
-  const { name, email, password, phone } = request.body
+  const { name, email, password, phone } = request.body || {}
   if (![name, email, password, phone].every((value) => typeof value === 'string' && value.trim())) {
     return response.status(400).json({ message: 'Name, email, password, and phone are required.' })
   }
@@ -38,6 +39,9 @@ export async function registerStudent(request, response) {
   const normalizedEmail = email.trim().toLowerCase()
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
     return response.status(400).json({ message: 'Enter a valid email address.' })
+  }
+  if (!isInstitutionalEmail(normalizedEmail)) {
+    return response.status(403).json({ message: 'Use your @sst.scaler.com email address.' })
   }
   if (password.length < 8) {
     return response.status(400).json({ message: 'Password must be at least 8 characters.' })
@@ -47,6 +51,9 @@ export async function registerStudent(request, response) {
   }
   if (!/^\+?[\d\s().-]{7,30}$/.test(phone.trim())) {
     return response.status(400).json({ message: 'Enter a valid phone number.' })
+  }
+  if (!process.env.JWT_SECRET) {
+    return response.status(503).json({ message: 'Authentication is not configured. Set JWT_SECRET in server/.env.' })
   }
 
   const existingUser = await User.findOne({ email: normalizedEmail })
@@ -67,14 +74,18 @@ export async function registerStudent(request, response) {
 }
 
 export async function login(request, response) {
-  const email = typeof request.body.email === 'string' ? request.body.email.trim().toLowerCase() : ''
-  const password = typeof request.body.password === 'string' ? request.body.password : ''
+  const body = request.body || {}
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
   if (!email || !password) {
     return response.status(400).json({ message: 'Email and password are required.' })
   }
 
   const user = await User.findOne({ email }).select('+passwordHash')
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return response.status(401).json({ message: 'Email or password is incorrect.' })
+  }
+  if (user.role === 'student' && !isInstitutionalEmail(email)) {
     return response.status(401).json({ message: 'Email or password is incorrect.' })
   }
 

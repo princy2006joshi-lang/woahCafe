@@ -61,6 +61,8 @@ Remove `KITCHEN_PASSWORD` from `.env` after the account is created. The password
 
 Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Staff can add, remove, or toggle availability for items in the **Menu availability** section of `/kitchen`. Removing a menu item does not delete its historical orders or saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
 
+Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Email ownership is not verified because no email delivery service is configured.
+
 ## Checks
 
 ```powershell
