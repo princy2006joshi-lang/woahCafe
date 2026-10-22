@@ -48,6 +48,8 @@ npm run create:kitchen
 
 Remove `KITCHEN_PASSWORD` from `.env` after the account is created. The password is hashed before it is stored. Kitchen staff sign in at `/kitchen/login`.
 
+The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_PASSWORD` later does not change the stored account. The creation script will report an error if that email already exists. A `401` on sign-in means the submitted email/password does not match an account in the database currently used by the API.
+
 ## API outline
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
