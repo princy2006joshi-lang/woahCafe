@@ -53,15 +53,16 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 ## API outline
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-- `GET /api/menu`
+- `GET /api/menu` (available items only; optional `category` filter)
 - `POST /api/orders`, `GET /api/orders/my`, `GET /api/orders/:orderId`
 - `GET /api/kitchen/orders?view=active|history`
 - `PATCH /api/kitchen/orders/:orderId/status`
+- `GET /api/kitchen/menu` (all menu items; kitchen role only)
 - `POST /api/kitchen/menu` (kitchen role only)
-- `PATCH /api/kitchen/menu/:id`
+- `PATCH /api/kitchen/menu/:id` (edit item fields or availability; kitchen role only)
 - `DELETE /api/kitchen/menu/:id` (kitchen role only)
 
-Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Staff can add, remove, or toggle availability for items in the **Menu availability** section of `/kitchen`. Removing a menu item does not delete its historical orders or saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
+Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Signed-in students can browse currently available items at `/menu`; kitchen staff can add, edit, remove, and toggle availability at `/kitchen/menu`. Menu items can include an optional HTTP(S) image URL. Removing a menu item does not delete historical orders or their saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
 
 Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Email ownership is not verified because no email delivery service is configured.
 
