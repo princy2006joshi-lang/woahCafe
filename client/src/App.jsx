@@ -558,17 +558,31 @@ function OrderConfirmationPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    api.get(`/api/orders/${encodeURIComponent(orderId)}`, { signal: controller.signal })
-      .then(({ data }) => setOrder(data.order))
-      .catch((requestError) => {
+    let polling = false
+
+    async function refreshOrder() {
+      if (polling) return
+      polling = true
+      try {
+        const { data } = await api.get(`/api/orders/${encodeURIComponent(orderId)}`, { signal: controller.signal })
+        setOrder(data.order)
+        setError('')
+      } catch (requestError) {
         if (!controller.signal.aborted) {
           setError(requestError.response?.data?.message || 'Could not load this order.')
         }
-      })
-      .finally(() => {
+      } finally {
+        polling = false
         if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
+      }
+    }
+
+    refreshOrder()
+    const interval = setInterval(refreshOrder, 5000)
+    return () => {
+      controller.abort()
+      clearInterval(interval)
+    }
   }, [orderId])
 
   return (
@@ -582,7 +596,13 @@ function OrderConfirmationPage() {
         ) : order && (
           <>
             <h1 className="menu-page-title">Order received.</h1>
-            <p className="menu-page-copy">Keep this page handy while the café prepares your order.</p>
+            <p className="menu-page-copy">Your order status refreshes automatically while the café prepares it.</p>
+            {order.status === 'Ready for Pickup' && (
+              <aside className="ready-notification" aria-live="assertive">
+                <strong>Your order is ready for pickup!</strong>
+                <span>Please collect it from the café counter.</span>
+              </aside>
+            )}
             <div className="order-summary-card">
               <p className="account-label">ORDER REFERENCE</p>
               <p className="order-reference">{order.orderId}</p>
@@ -607,10 +627,263 @@ function OrderConfirmationPage() {
                 <span>{order.status}</span>
               </div>
             </div>
-            <Link className="primary-button button-link" to="/menu">Back to menu</Link>
+            <div className="welcome-actions">
+              <Link className="primary-button button-link" to="/orders">Order history</Link>
+              <Link className="secondary-button button-link" to="/menu">Back to menu</Link>
+            </div>
           </>
         )}
       </div>
+    </section>
+  )
+}
+
+function ReadyOrderNotice({ orders }) {
+  if (orders.length === 0) return null
+
+  return (
+    <aside className="ready-notification global-ready-notification" aria-live="assertive">
+      <div>
+        <strong>{orders.length === 1 ? 'Your order is ready for pickup!' : `${orders.length} orders are ready for pickup!`}</strong>
+        <span>Collect your ready order{orders.length === 1 ? '' : 's'} from the café counter.</span>
+      </div>
+      <Link className="ready-notification-link" to={`/orders/${encodeURIComponent(orders[0].orderId)}`}>
+        View order
+      </Link>
+    </aside>
+  )
+}
+
+function StudentOrderHistoryPage() {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let polling = false
+
+    async function refreshOrders() {
+      if (polling) return
+      polling = true
+      try {
+        const { data } = await api.get('/api/orders/my', { signal: controller.signal })
+        setOrders(data.orders)
+        setError('')
+      } catch (requestError) {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Could not load your orders.')
+        }
+      } finally {
+        polling = false
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    refreshOrders()
+    const interval = setInterval(refreshOrders, 7000)
+    return () => {
+      controller.abort()
+      clearInterval(interval)
+    }
+  }, [])
+
+  return (
+    <section className="menu-page">
+      <div className="menu-page-heading">
+        <div>
+          <p className="eyebrow">YOUR ORDERS</p>
+          <h1 className="menu-page-title">Order history</h1>
+          <p className="menu-page-copy">Statuses update automatically while your orders are active.</p>
+        </div>
+        <Link className="secondary-button" to="/menu">Back to menu</Link>
+      </div>
+      {error && <p className="form-error menu-feedback" role="alert">{error}</p>}
+      {loading ? (
+        <p className="menu-empty" aria-live="polite">Loading your orders…</p>
+      ) : orders.length === 0 ? (
+        <p className="menu-empty">You haven’t placed an order yet. <Link to="/menu">Browse the menu</Link>.</p>
+      ) : (
+        <div className="student-order-list">
+          {orders.map((order) => (
+            <article className="student-order-card" key={order.orderId}>
+              <div className="student-order-heading">
+                <div>
+                  <p className="account-label">ORDER REFERENCE</p>
+                  <h2>{order.orderId}</h2>
+                </div>
+                <span className={`order-status-badge${order.status === 'Ready for Pickup' ? ' order-status-badge--ready' : ''}`}>
+                  {order.status === 'Completed / Taken' ? 'Completed' : order.status}
+                </span>
+              </div>
+              <ul className="payment-order-items">
+                {order.items.map((item) => (
+                  <li key={`${item.name}-${item.menuItem}`}>
+                    <span>{item.quantity} × {item.name}</span>
+                    <span>₹{(item.quantity * item.priceAtOrder).toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="student-order-footer">
+                <span>Pay at the café · {order.paymentStatus === 'paid' ? 'Paid' : 'Due at pickup'}</span>
+                <strong>₹{Number(order.total).toFixed(2)}</strong>
+              </div>
+              {order.status === 'Ready for Pickup' && (
+                <p className="ready-order-hint" role="status">Your order is ready. Please collect it at the café.</p>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function KitchenOrdersPage() {
+  const [view, setView] = useState('active')
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [pendingId, setPendingId] = useState('')
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let polling = false
+
+    async function refreshOrders() {
+      if (polling) return
+      polling = true
+      try {
+        const { data } = await api.get(`/api/kitchen/orders?view=${view}`, { signal: controller.signal })
+        setOrders(data.orders)
+        setError('')
+      } catch (requestError) {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Could not load kitchen orders.')
+        }
+      } finally {
+        polling = false
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    setLoading(true)
+    refreshOrders()
+    const interval = setInterval(refreshOrders, 5000)
+    return () => {
+      controller.abort()
+      clearInterval(interval)
+    }
+  }, [view])
+
+  async function advanceOrder(order) {
+    const transitions = {
+      Queued: 'In Progress',
+      'In Progress': 'Ready for Pickup',
+      'Ready for Pickup': 'Completed',
+    }
+    const nextStatus = transitions[order.status]
+    if (!nextStatus) return
+
+    setPendingId(order.orderId)
+    setError('')
+    setNotice('')
+    try {
+      const { data } = await api.patch(
+        `/api/kitchen/orders/${encodeURIComponent(order.orderId)}/status`,
+        { status: nextStatus },
+      )
+      setOrders((current) => view === 'active'
+        ? current.map((entry) => entry.orderId === order.orderId ? data.order : entry)
+        : current.filter((entry) => entry.orderId !== order.orderId))
+      setNotice(`Order ${order.orderId} moved to ${data.order.status}.`)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not update the order status.')
+    } finally {
+      setPendingId('')
+    }
+  }
+
+  return (
+    <section className="menu-page">
+      <div className="menu-page-heading">
+        <div>
+          <p className="eyebrow">KITCHEN STAFF</p>
+          <h1 className="menu-page-title">Kitchen orders</h1>
+          <p className="menu-page-copy">New and updated orders refresh automatically every 5 seconds.</p>
+        </div>
+        <Link className="secondary-button" to="/">Back to home</Link>
+      </div>
+      <div className="order-view-tabs" role="tablist" aria-label="Order view">
+        <button
+          aria-selected={view === 'active'}
+          className={`order-view-tab${view === 'active' ? ' order-view-tab--active' : ''}`}
+          onClick={() => setView('active')}
+          role="tab"
+          type="button"
+        >Active orders</button>
+        <button
+          aria-selected={view === 'history'}
+          className={`order-view-tab${view === 'history' ? ' order-view-tab--active' : ''}`}
+          onClick={() => setView('history')}
+          role="tab"
+          type="button"
+        >Completed history</button>
+      </div>
+      {error && <p className="form-error menu-feedback" role="alert">{error}</p>}
+      {notice && <p className="menu-notice menu-feedback" role="status">{notice}</p>}
+      {loading ? (
+        <p className="menu-empty" aria-live="polite">Loading orders…</p>
+      ) : orders.length === 0 ? (
+        <p className="menu-empty">{view === 'active' ? 'No active orders right now.' : 'No completed orders yet.'}</p>
+      ) : (
+        <div className="kitchen-order-list">
+          {orders.map((order) => (
+            <article className="kitchen-order-card" key={order.orderId}>
+              <div className="kitchen-order-heading">
+                <div>
+                  <p className="account-label">{view === 'history' ? 'COMPLETED ORDER' : 'ORDER REFERENCE'}</p>
+                  <h2>{order.orderId}</h2>
+                </div>
+                <span className={`order-status-badge${order.status === 'Ready for Pickup' ? ' order-status-badge--ready' : ''}`}>
+                  {order.status === 'Completed / Taken' ? 'Completed' : order.status}
+                </span>
+              </div>
+              <div className="kitchen-contact">
+                <strong>{order.studentName}</strong>
+                <a href={`tel:${order.studentPhone}`}>{order.studentPhone}</a>
+              </div>
+              <ul className="payment-order-items">
+                {order.items.map((item) => (
+                  <li key={`${item.name}-${item.menuItem}`}>
+                    <span>{item.quantity} × {item.name}</span>
+                    <span>₹{(item.quantity * item.priceAtOrder).toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="kitchen-order-meta">
+                <span>Total <strong>₹{Number(order.total).toFixed(2)}</strong></span>
+                <span>Payment <strong>{order.paymentMethod === 'counter' ? 'At café' : order.paymentMethod}</strong></span>
+                <span>Payment status <strong>{order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}</strong></span>
+              </div>
+              {view === 'active' && (
+                <button
+                  className="primary-button"
+                  disabled={pendingId === order.orderId}
+                  onClick={() => advanceOrder(order)}
+                  type="button"
+                >
+                  {pendingId === order.orderId
+                    ? 'Updating…'
+                    : order.status === 'Ready for Pickup' ? 'Mark completed'
+                      : `Move to ${({ Queued: 'In Progress', 'In Progress': 'Ready for Pickup' })[order.status]}`}
+                </button>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -736,12 +1009,14 @@ function HomePage({ user, health, onLogout, loggingOut, logoutError, cartCount }
           </div>
           {user.role === 'kitchen' ? (
             <div className="welcome-actions">
+              <Link className="primary-button button-link" to="/kitchen/orders">Kitchen orders</Link>
               <Link className="primary-button button-link" to="/kitchen/menu">Manage menu</Link>
               <Link className="secondary-button button-link" to="/kitchen/payments">Counter payments</Link>
             </div>
           ) : (
             <div className="welcome-actions">
               <Link className="primary-button button-link" to="/menu">Browse menu</Link>
+              <Link className="secondary-button button-link" to="/orders">Order history</Link>
               <Link className="secondary-button button-link" to="/cart">
                 Cart{cartCount > 0 ? ` (${cartCount})` : ''}
               </Link>
@@ -768,6 +1043,8 @@ export default function App() {
   const [cartOwnerId, setCartOwnerId] = useState('')
   const [cartStorageReady, setCartStorageReady] = useState(false)
   const [cartError, setCartError] = useState('')
+  const [readyOrders, setReadyOrders] = useState([])
+  const [notificationError, setNotificationError] = useState('')
   const [sessionLoading, setSessionLoading] = useState(true)
   const [sessionError, setSessionError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -851,6 +1128,40 @@ export default function App() {
       setCartError('Could not save your cart in this browser. Check your browser storage settings.')
     }
   }, [cart, cartOwnerId, cartStorageReady, sessionLoading, user?.id, user?.role])
+
+  useEffect(() => {
+    if (sessionLoading || user?.role !== 'student') {
+      setReadyOrders([])
+      setNotificationError('')
+      return undefined
+    }
+
+    const controller = new AbortController()
+    let polling = false
+
+    async function refreshReadyOrders() {
+      if (polling) return
+      polling = true
+      try {
+        const { data } = await api.get('/api/orders/my', { signal: controller.signal })
+        setReadyOrders(data.orders.filter((order) => order.status === 'Ready for Pickup'))
+        setNotificationError('')
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setNotificationError(error.response?.data?.message || 'Could not check for ready orders.')
+        }
+      } finally {
+        polling = false
+      }
+    }
+
+    refreshReadyOrders()
+    const interval = setInterval(refreshReadyOrders, 7000)
+    return () => {
+      controller.abort()
+      clearInterval(interval)
+    }
+  }, [sessionLoading, user?.id, user?.role])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -977,6 +1288,12 @@ export default function App() {
           <span className="campus-label">MADE FOR CAMPUS</span>
         </div>
       </header>
+      {!sessionLoading && user?.role === 'student' && (
+        <>
+          <ReadyOrderNotice orders={location.pathname.startsWith('/orders/') ? [] : readyOrders} />
+          {notificationError && <p className="session-error notification-error" role="alert">{notificationError}</p>}
+        </>
+      )}
 
       {sessionLoading ? (
         <section className="welcome" aria-live="polite">
@@ -1051,6 +1368,14 @@ export default function App() {
             <Route
               path="/orders/:orderId"
               element={user?.role === 'student' ? <OrderConfirmationPage /> : <Navigate to={user ? '/' : '/login'} replace />}
+            />
+            <Route
+              path="/orders"
+              element={user?.role === 'student' ? <StudentOrderHistoryPage /> : <Navigate to={user ? '/' : '/login'} replace />}
+            />
+            <Route
+              path="/kitchen/orders"
+              element={user?.role === 'kitchen' ? <KitchenOrdersPage /> : <Navigate to={user ? '/' : '/kitchen/login'} replace />}
             />
             <Route
               path="/kitchen/menu"

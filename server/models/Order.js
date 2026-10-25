@@ -43,8 +43,8 @@ const orderSchema = new mongoose.Schema(
     paymentRecordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     status: {
       type: String,
-      enum: ["In Progress", "Ready for Pickup", "Completed / Taken"],
-      default: "In Progress",
+      enum: ['Queued', 'In Progress', 'Ready for Pickup', 'Completed', 'Completed / Taken'],
+      default: 'Queued',
       required: true,
     },
   },

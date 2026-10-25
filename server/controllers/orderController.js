@@ -70,7 +70,7 @@ export async function placeOrder(request, response) {
     total: totalCents / 100,
     paymentMethod: 'counter',
     paymentStatus: 'pending',
-    status: 'In Progress',
+    status: 'Queued',
   })
 
   return response.status(201).json({ order })

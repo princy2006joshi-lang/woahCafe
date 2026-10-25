@@ -52,3 +52,22 @@ test('order payment state defaults to pending and is separate from preparation s
   assert.equal(order.status, 'Ready for Pickup')
   assert.equal(order.validateSync(), undefined)
 })
+
+test('new orders start in the queued preparation state', () => {
+  const order = new Order({
+    orderId: 'order-queued-test',
+    student: new Order.base.Types.ObjectId(),
+    studentName: 'Student',
+    studentPhone: '1234567890',
+    items: [{
+      menuItem: new Order.base.Types.ObjectId(),
+      name: 'Chai',
+      quantity: 1,
+      priceAtOrder: 25,
+    }],
+    total: 25,
+  })
+
+  assert.equal(order.status, 'Queued')
+  assert.equal(order.validateSync(), undefined)
+})

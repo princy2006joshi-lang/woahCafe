@@ -879,6 +879,176 @@ button:disabled {
   justify-self: start;
 }
 
+.ready-notification {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid #c5ddc8;
+  border-radius: 14px;
+  background: #eaf5e9;
+  color: #28543b;
+}
+
+.global-ready-notification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.global-ready-notification > div {
+  display: grid;
+  gap: 5px;
+}
+
+.ready-notification-link {
+  flex: 0 0 auto;
+  color: #28543b;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+.notification-error {
+  width: min(100%, 1120px);
+  margin: 0 auto 16px;
+}
+
+.ready-notification strong {
+  font-size: 0.96rem;
+}
+
+.ready-notification span {
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.student-order-list,
+.kitchen-order-list {
+  display: grid;
+  gap: 16px;
+}
+
+.student-order-card,
+.kitchen-order-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #e1dbd1;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 70%);
+}
+
+.student-order-heading,
+.kitchen-order-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.student-order-heading h2,
+.kitchen-order-heading h2 {
+  max-width: 100%;
+  margin: 6px 0 0;
+  color: #1e382d;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.order-status-badge {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eeeae0;
+  color: #5e655c;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.order-status-badge--ready {
+  background: #e2f0e2;
+  color: #28543b;
+}
+
+.student-order-footer,
+.kitchen-order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #e7e2d9;
+  color: #68766e;
+  font-size: 0.82rem;
+}
+
+.student-order-footer strong,
+.kitchen-order-meta strong {
+  color: #254c3c;
+}
+
+.ready-order-hint {
+  margin: 0;
+  color: #28543b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.order-view-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dfd9cf;
+}
+
+.order-view-tab {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #68766e;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.order-view-tab--active {
+  border-color: #cbd8cc;
+  background: #edf3eb;
+  color: #254c3c;
+}
+
+.order-view-tab:focus-visible,
+.kitchen-contact a:focus-visible {
+  outline: 3px solid #c28c42;
+  outline-offset: 3px;
+}
+
+.kitchen-contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 18px;
+  color: #34493d;
+  font-size: 0.86rem;
+}
+
+.kitchen-contact a {
+  color: #315d47;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.kitchen-order-meta {
+  justify-content: flex-start;
+  gap: 10px 24px;
+}
+
 .session-error {
   width: min(100%, 480px);
   margin: 28px auto 0;
@@ -989,6 +1159,22 @@ button:disabled {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
+  }
+
+  .student-order-heading,
+  .kitchen-order-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .global-ready-notification {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .kitchen-order-meta {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .menu-editor-grid {

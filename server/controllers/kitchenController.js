@@ -1,35 +1,38 @@
 import Order from '../models/Order.js'
-
-const statusSequence = ['In Progress', 'Ready for Pickup', 'Completed / Taken']
+import { nextOrderStatus, orderStatuses } from '../utils/orderStatus.js'
 
 export async function listKitchenOrders(request, response) {
   const view = request.query.view === 'history' ? 'history' : 'active'
   const statusFilter = view === 'history'
-    ? { status: 'Completed / Taken' }
-    : { status: { $ne: 'Completed / Taken' } }
+    ? { status: { $in: ['Completed', 'Completed / Taken'] } }
+    : { status: { $nin: ['Completed', 'Completed / Taken'] } }
   const orders = await Order.find(statusFilter).sort({ createdAt: view === 'history' ? -1 : 1 }).lean()
   return response.json({ orders })
 }
 
 export async function updateOrderStatus(request, response) {
-  const { status } = request.body
-  const nextIndex = statusSequence.indexOf(status)
-  if (nextIndex < 0) {
+  const status = request.body?.status
+  if (!orderStatuses.includes(status)) {
     return response.status(400).json({ message: 'Choose a valid order status.' })
   }
 
-  const order = await Order.findOne({ orderId: request.params.id })
-  if (!order) {
+  const currentOrder = await Order.findOne({ orderId: request.params.id }).select('status')
+  if (!currentOrder) {
     return response.status(404).json({ message: 'Order not found.' })
   }
 
-  const currentIndex = statusSequence.indexOf(order.status)
-  if (nextIndex !== currentIndex + 1) {
+  if (nextOrderStatus(currentOrder.status) !== status) {
     return response.status(409).json({ message: 'Orders can only move to the next status.' })
   }
 
-  order.status = status
-  await order.save()
+  const order = await Order.findOneAndUpdate(
+    { orderId: request.params.id, status: currentOrder.status },
+    { $set: { status } },
+    { new: true, runValidators: true },
+  )
+  if (!order) {
+    return response.status(409).json({ message: 'The order was updated by another kitchen session. Refresh and try again.' })
+  }
   return response.json({ order })
 }
 
