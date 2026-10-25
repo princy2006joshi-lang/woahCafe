@@ -27,6 +27,20 @@ const orderSchema = new mongoose.Schema(
     studentPhone: { type: String, required: true },
     items: { type: [orderItemSchema], required: true },
     total: { type: Number, required: true, min: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ['counter'],
+      default: 'counter',
+      required: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid'],
+      default: 'pending',
+      required: true,
+    },
+    paidAt: { type: Date, default: null },
+    paymentRecordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     status: {
       type: String,
       enum: ["In Progress", "Ready for Pickup", "Completed / Taken"],

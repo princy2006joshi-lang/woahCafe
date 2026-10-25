@@ -35,7 +35,15 @@ Woah Cafe is a student ordering and kitchen order-tracking app. The React client
 
 6. Open the Vite URL printed by the client, normally `http://localhost:5173`.
 
-Check `http://localhost:5000/api/health`. It should say `"database":"connected"`. If it says `disconnected`, confirm `server/.env` exists, the Atlas database user/password are correct, and your IP is allowed in Atlas Network Access. The app has no demo menu or orders. MongoDB creates the database and collections automatically on the first real write.
+Check `http://localhost:5000/api/health`. It should say `"database":"connected"`. If it says `disconnected`, confirm `server/.env` exists, the Atlas database user/password are correct, and your IP is allowed in Atlas Network Access. MongoDB creates the database and collections automatically on the first real write.
+
+To add the 30 quick-to-prepare starter menu items (five each for burgers, sandwiches, beverages, Maggi, rolls, and omelettes), run this once from the server folder:
+
+```powershell
+npm run seed:menu
+```
+
+The seed only inserts items that are not already present by name and category. Re-running it does not overwrite prices, descriptions, or availability changed by kitchen staff.
 
 ## Create the private kitchen login
 
@@ -55,6 +63,9 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `GET /api/menu` (available items only; optional `category` filter)
 - `POST /api/orders`, `GET /api/orders/my`, `GET /api/orders/:orderId`
+- `GET /api/kitchen/payments/counter` (unpaid counter orders; kitchen role only)
+- `PATCH /api/kitchen/orders/:orderId/payment` (record received counter payment; kitchen role only)
+- `POST /api/orders` accepts `items: [{ menuItemId, quantity }]` and `paymentMethod: "counter"`; prices are read from MongoDB, never from the request.
 - `GET /api/kitchen/orders?view=active|history`
 - `PATCH /api/kitchen/orders/:orderId/status`
 - `GET /api/kitchen/menu` (all menu items; kitchen role only)
@@ -63,6 +74,8 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 - `DELETE /api/kitchen/menu/:id` (kitchen role only)
 
 Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Signed-in students can browse currently available items at `/menu`; kitchen staff can add, edit, remove, and toggle availability at `/kitchen/menu`. Menu items can include an optional HTTP(S) image URL. Removing a menu item does not delete historical orders or their saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
+
+Students can add available menu items to `/cart`, adjust quantities, and place orders with pay-at-café checkout. Cart contents are saved in browser storage separately for each signed-in student and restored after a reload on that browser. The server recalculates prices and totals and rejects unavailable items; payment remains pending until kitchen staff record receipt at `/kitchen/payments`. Payment state is stored separately from preparation status. Online checkout is not available yet and is planned for Part 8.
 
 Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Email ownership is not verified because no email delivery service is configured.
 

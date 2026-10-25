@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "create:kitchen": "node scripts/createKitchenUser.js",
+    "seed:menu": "node scripts/seedMenu.js",
     "test": "node --test"
   },
   "dependencies": {

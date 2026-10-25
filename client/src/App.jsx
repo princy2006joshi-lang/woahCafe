@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import api from './axiosCalls/axios.js'
+import { clearSavedCart, loadSavedCart, saveCart } from './cartStorage.js'
 
 function ServiceStatus({ health }) {
   return (
@@ -244,7 +245,7 @@ function MenuItemImage({ item }) {
   )
 }
 
-function MenuPage({ mode }) {
+function MenuPage({ mode, cart, onAddToCart, onUpdateCartQuantity }) {
   const isKitchen = mode === 'kitchen'
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -380,6 +381,31 @@ function MenuPage({ mode }) {
                   <p className="menu-item-price">₹{Number(item.price).toFixed(2)}</p>
                 </div>
                 {item.description && <p className="menu-item-description">{item.description}</p>}
+                {!isKitchen && (
+                  cart[item._id] ? (
+                    <div className="menu-cart-control">
+                      <span className="menu-cart-label">In your cart</span>
+                      <div className="quantity-control" aria-label={`Cart quantity for ${item.name}`}>
+                        <button
+                          aria-label={`Remove one ${item.name}`}
+                          onClick={() => onUpdateCartQuantity(item._id, cart[item._id].quantity - 1)}
+                          type="button"
+                        >−</button>
+                        <span aria-live="polite">{cart[item._id].quantity}</span>
+                        <button
+                          aria-label={`Add one ${item.name}`}
+                          disabled={cart[item._id].quantity >= 50}
+                          onClick={() => onUpdateCartQuantity(item._id, cart[item._id].quantity + 1)}
+                          type="button"
+                        >+</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="primary-button menu-add-button" onClick={() => onAddToCart(item)} type="button">
+                      Add to cart
+                    </button>
+                  )
+                )}
                 {isKitchen && (
                   <div className="menu-item-actions">
                     <span className={`availability-badge${item.available ? ' availability-badge--on' : ''}`}>
@@ -420,7 +446,265 @@ function MenuPage({ mode }) {
   )
 }
 
-function HomePage({ user, health, onLogout, loggingOut, logoutError }) {
+function CartPage({ cart, onUpdateQuantity, onRemoveItem, onClearCart }) {
+  const navigate = useNavigate()
+  const [paymentMethod, setPaymentMethod] = useState('counter')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const entries = Object.values(cart)
+  const total = entries.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0)
+
+  async function placeOrder(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    try {
+      const { data } = await api.post('/api/orders', {
+        items: entries.map(({ item, quantity }) => ({ menuItemId: item._id, quantity })),
+        paymentMethod,
+      })
+      onClearCart()
+      navigate(`/orders/${encodeURIComponent(data.order.orderId)}`)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not place your order. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="menu-page">
+      <div className="menu-page-heading">
+        <div>
+          <p className="eyebrow">READY WHEN YOU ARE</p>
+          <h1 className="menu-page-title">Your cart</h1>
+          <p className="menu-page-copy">Review your items and choose how you’ll pay.</p>
+        </div>
+        <Link className="secondary-button" to="/menu">Back to menu</Link>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="menu-empty">
+          Your cart is empty. <Link to="/menu">Browse the menu</Link> to add something.
+        </div>
+      ) : (
+        <div className="checkout-layout">
+          <div className="cart-items">
+            {entries.map(({ item, quantity }) => (
+              <article className="cart-row" key={item._id}>
+                <div className="cart-item-summary">
+                  <h2>{item.name}</h2>
+                  <p>₹{Number(item.price).toFixed(2)} each</p>
+                </div>
+                <div className="quantity-control" aria-label={`Quantity for ${item.name}`}>
+                  <button
+                    aria-label={`Decrease ${item.name} quantity`}
+                    disabled={quantity <= 1}
+                    onClick={() => onUpdateQuantity(item._id, quantity - 1)}
+                    type="button"
+                  >−</button>
+                  <span>{quantity}</span>
+                  <button
+                    aria-label={`Increase ${item.name} quantity`}
+                    disabled={quantity >= 50}
+                    onClick={() => onUpdateQuantity(item._id, quantity + 1)}
+                    type="button"
+                  >+</button>
+                </div>
+                <p className="cart-line-total">₹{(item.price * quantity).toFixed(2)}</p>
+                <button className="text-button text-button--danger cart-remove" onClick={() => onRemoveItem(item._id)} type="button">
+                  Remove
+                </button>
+              </article>
+            ))}
+          </div>
+
+          <form className="checkout-card" onSubmit={placeOrder}>
+            <h2>Payment</h2>
+            <label className="payment-option">
+              <input
+                checked={paymentMethod === 'counter'}
+                name="paymentMethod"
+                onChange={() => setPaymentMethod('counter')}
+                type="radio"
+                value="counter"
+              />
+              <span>
+                <strong>Pay at the café</strong>
+                <small>Pay at the counter when you pick up your order.</small>
+              </span>
+            </label>
+            <p className="payment-note">Online payment is not available yet.</p>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <div className="cart-total">
+              <span>Total</span>
+              <strong>₹{total.toFixed(2)}</strong>
+            </div>
+            <button className="primary-button" disabled={submitting} type="submit">
+              {submitting ? 'Placing order…' : 'Place order'}
+            </button>
+          </form>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function OrderConfirmationPage() {
+  const { orderId } = useParams()
+  const [order, setOrder] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api.get(`/api/orders/${encodeURIComponent(orderId)}`, { signal: controller.signal })
+      .then(({ data }) => setOrder(data.order))
+      .catch((requestError) => {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Could not load this order.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [orderId])
+
+  return (
+    <section className="menu-page">
+      <div className="order-confirmation">
+        <p className="eyebrow">ORDER CONFIRMATION</p>
+        {loading ? (
+          <p className="menu-empty" aria-live="polite">Loading your order…</p>
+        ) : error ? (
+          <p className="form-error" role="alert">{error}</p>
+        ) : order && (
+          <>
+            <h1 className="menu-page-title">Order received.</h1>
+            <p className="menu-page-copy">Keep this page handy while the café prepares your order.</p>
+            <div className="order-summary-card">
+              <p className="account-label">ORDER REFERENCE</p>
+              <p className="order-reference">{order.orderId}</p>
+              <div className="order-summary-lines">
+                {order.items.map((item) => (
+                  <div className="order-summary-line" key={`${item.name}-${item.menuItem}`}>
+                    <span>{item.quantity} × {item.name}</span>
+                    <span>₹{(item.quantity * item.priceAtOrder).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="cart-total">
+                <span>Total</span>
+                <strong>₹{Number(order.total).toFixed(2)}</strong>
+              </div>
+              <div className="payment-summary">
+                <span>Payment</span>
+                <span>Pay at the café · {order.paymentStatus === 'paid' ? 'Paid' : 'Due at pickup'}</span>
+              </div>
+              <div className="payment-summary">
+                <span>Preparation</span>
+                <span>{order.status}</span>
+              </div>
+            </div>
+            <Link className="primary-button button-link" to="/menu">Back to menu</Link>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function KitchenPaymentsPage() {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [pendingId, setPendingId] = useState('')
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api.get('/api/kitchen/payments/counter', { signal: controller.signal })
+      .then(({ data }) => setOrders(data.orders))
+      .catch((requestError) => {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Could not load counter payments.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [])
+
+  async function recordPayment(order) {
+    setPendingId(order.orderId)
+    setError('')
+    setNotice('')
+    try {
+      await api.patch(`/api/kitchen/orders/${encodeURIComponent(order.orderId)}/payment`)
+      setOrders((current) => current.filter((entry) => entry.orderId !== order.orderId))
+      setNotice(`Counter payment recorded for order ${order.orderId}.`)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not record counter payment.')
+    } finally {
+      setPendingId('')
+    }
+  }
+
+  return (
+    <section className="menu-page">
+      <div className="menu-page-heading">
+        <div>
+          <p className="eyebrow">KITCHEN STAFF</p>
+          <h1 className="menu-page-title">Counter payments</h1>
+          <p className="menu-page-copy">Record payment only after it has been received at the café counter.</p>
+        </div>
+        <Link className="secondary-button" to="/">Back to home</Link>
+      </div>
+      {error && <p className="form-error menu-feedback" role="alert">{error}</p>}
+      {notice && <p className="menu-notice menu-feedback" role="status">{notice}</p>}
+      {loading ? (
+        <p className="menu-empty" aria-live="polite">Loading unpaid orders…</p>
+      ) : orders.length === 0 ? (
+        <p className="menu-empty">There are no unpaid counter orders.</p>
+      ) : (
+        <div className="payment-order-list">
+          {orders.map((order) => (
+            <article className="payment-order-card" key={order.orderId}>
+              <div className="payment-order-heading">
+                <div>
+                  <p className="account-label">ORDER REFERENCE</p>
+                  <h2>{order.orderId}</h2>
+                </div>
+                <strong>₹{Number(order.total).toFixed(2)}</strong>
+              </div>
+              <p className="payment-student">{order.studentName} · {order.studentPhone}</p>
+              <ul className="payment-order-items">
+                {order.items.map((item) => (
+                  <li key={`${item.name}-${item.menuItem}`}>
+                    <span>{item.quantity} × {item.name}</span>
+                    <span>₹{(item.quantity * item.priceAtOrder).toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="primary-button"
+                disabled={pendingId === order.orderId}
+                onClick={() => recordPayment(order)}
+                type="button"
+              >
+                {pendingId === order.orderId ? 'Recording…' : 'Record payment received'}
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function HomePage({ user, health, onLogout, loggingOut, logoutError, cartCount }) {
   return (
     <section className="welcome" aria-labelledby="welcome-title">
       <p className="eyebrow">{user ? user.role === 'kitchen' ? 'KITCHEN STAFF' : 'YOUR CAMPUS CAFÉ' : 'YOUR CAMPUS CAFÉ'}</p>
@@ -453,10 +737,14 @@ function HomePage({ user, health, onLogout, loggingOut, logoutError }) {
           {user.role === 'kitchen' ? (
             <div className="welcome-actions">
               <Link className="primary-button button-link" to="/kitchen/menu">Manage menu</Link>
+              <Link className="secondary-button button-link" to="/kitchen/payments">Counter payments</Link>
             </div>
           ) : (
             <div className="welcome-actions">
               <Link className="primary-button button-link" to="/menu">Browse menu</Link>
+              <Link className="secondary-button button-link" to="/cart">
+                Cart{cartCount > 0 ? ` (${cartCount})` : ''}
+              </Link>
             </div>
           )}
         </>
@@ -476,6 +764,10 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [user, setUser] = useState(null)
+  const [cart, setCart] = useState({})
+  const [cartOwnerId, setCartOwnerId] = useState('')
+  const [cartStorageReady, setCartStorageReady] = useState(false)
+  const [cartError, setCartError] = useState('')
   const [sessionLoading, setSessionLoading] = useState(true)
   const [sessionError, setSessionError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -520,6 +812,45 @@ export default function App() {
       clearTimeout(retryTimeout)
     }
   }, [])
+
+  useEffect(() => {
+    if (sessionLoading || user?.role !== 'student' || !user.id) {
+      setCart({})
+      setCartOwnerId('')
+      setCartStorageReady(false)
+      return
+    }
+
+    try {
+      const savedCart = loadSavedCart(user.id, window.localStorage)
+      setCart(savedCart)
+      setCartOwnerId(user.id)
+      setCartStorageReady(true)
+      setCartError('')
+    } catch (error) {
+      setCart({})
+      setCartOwnerId(user.id)
+      setCartStorageReady(false)
+      setCartError(error.message || 'Could not load your saved cart.')
+    }
+  }, [sessionLoading, user?.id, user?.role])
+
+  useEffect(() => {
+    if (
+      sessionLoading
+      || user?.role !== 'student'
+      || !user.id
+      || cartOwnerId !== user.id
+      || !cartStorageReady
+    ) return
+
+    try {
+      saveCart(user.id, cart, window.localStorage)
+      setCartError('')
+    } catch {
+      setCartError('Could not save your cart in this browser. Check your browser storage settings.')
+    }
+  }, [cart, cartOwnerId, cartStorageReady, sessionLoading, user?.id, user?.role])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -576,6 +907,9 @@ export default function App() {
     try {
       await api.post('/api/auth/logout')
       setUser(null)
+      setCart({})
+      setCartOwnerId('')
+      setCartStorageReady(false)
       navigate('/login')
     } catch (error) {
       setLogoutError(error.response?.data?.message || 'Could not sign out. Please try again.')
@@ -584,6 +918,47 @@ export default function App() {
     }
   }
 
+  function addToCart(item) {
+    setCart((current) => {
+      const existing = current[item._id]
+      const quantity = existing ? Math.min(existing.quantity + 1, 50) : 1
+      return { ...current, [item._id]: { item, quantity } }
+    })
+  }
+
+  function updateCartQuantity(itemId, quantity) {
+    setCart((current) => {
+      if (!current[itemId]) return current
+      if (quantity < 1) {
+        const next = { ...current }
+        delete next[itemId]
+        return next
+      }
+      return { ...current, [itemId]: { ...current[itemId], quantity: Math.min(quantity, 50) } }
+    })
+  }
+
+  function removeCartItem(itemId) {
+    setCart((current) => {
+      const next = { ...current }
+      delete next[itemId]
+      return next
+    })
+  }
+
+  function discardSavedCart() {
+    if (!user?.id) return
+    try {
+      clearSavedCart(user.id, window.localStorage)
+      setCart({})
+      setCartStorageReady(true)
+      setCartError('')
+    } catch {
+      setCartError('Could not clear your saved cart from this browser.')
+    }
+  }
+
+  const cartCount = Object.values(cart).reduce((sum, entry) => sum + entry.quantity, 0)
   const isAuthRoute = ['/login', '/register', '/kitchen/login'].includes(location.pathname)
 
   return (
@@ -593,7 +968,14 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true">W</span>
           <span>woah cafe</span>
         </Link>
-        <span className="campus-label">MADE FOR CAMPUS</span>
+        <div className="topbar-actions">
+          {user?.role === 'student' && (
+            <Link className="topbar-cart" to="/cart" aria-label={`Cart with ${cartCount} items`}>
+              Cart{cartCount > 0 ? ` (${cartCount})` : ''}
+            </Link>
+          )}
+          <span className="campus-label">MADE FOR CAMPUS</span>
+        </div>
       </header>
 
       {sessionLoading ? (
@@ -604,6 +986,12 @@ export default function App() {
       ) : (
         <>
           {sessionError && <p className="session-error" role="alert">{sessionError}</p>}
+          {cartError && user?.role === 'student' && (
+            <p className="session-error cart-storage-error" role="alert">
+              {cartError}
+              <button className="text-button" onClick={discardSavedCart} type="button">Clear saved cart</button>
+            </p>
+          )}
           <Routes>
             <Route
               path="/"
@@ -613,6 +1001,7 @@ export default function App() {
                   loggingOut={loggingOut}
                   logoutError={logoutError}
                   onLogout={handleLogout}
+                  cartCount={cartCount}
                   user={user}
                 />
               )}
@@ -637,11 +1026,39 @@ export default function App() {
             />
             <Route
               path="/menu"
-              element={user?.role === 'student' ? <MenuPage mode="student" /> : <Navigate to={user ? '/' : '/login'} replace />}
+              element={user?.role === 'student'
+                ? cartOwnerId === user.id ? (
+                  <MenuPage
+                    cart={cart}
+                    mode="student"
+                    onAddToCart={addToCart}
+                    onUpdateCartQuantity={updateCartQuantity}
+                  />
+                ) : <p className="welcome-copy" aria-live="polite">Loading your saved cart…</p>
+                : <Navigate to={user ? '/' : '/login'} replace />}
+            />
+            <Route
+              path="/cart"
+              element={user?.role === 'student' ? cartOwnerId === user.id ? (
+                <CartPage
+                  cart={cart}
+                  onClearCart={() => setCart({})}
+                  onRemoveItem={removeCartItem}
+                  onUpdateQuantity={updateCartQuantity}
+                />
+              ) : <p className="welcome-copy" aria-live="polite">Loading your saved cart…</p> : <Navigate to={user ? '/' : '/login'} replace />}
+            />
+            <Route
+              path="/orders/:orderId"
+              element={user?.role === 'student' ? <OrderConfirmationPage /> : <Navigate to={user ? '/' : '/login'} replace />}
             />
             <Route
               path="/kitchen/menu"
               element={user?.role === 'kitchen' ? <MenuPage mode="kitchen" /> : <Navigate to={user ? '/' : '/kitchen/login'} replace />}
+            />
+            <Route
+              path="/kitchen/payments"
+              element={user?.role === 'kitchen' ? <KitchenPaymentsPage /> : <Navigate to={user ? '/' : '/kitchen/login'} replace />}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

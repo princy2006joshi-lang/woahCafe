@@ -3,23 +3,41 @@ import mongoose from 'mongoose'
 import MenuItem from '../models/MenuItem.js'
 import Order from '../models/Order.js'
 
-export async function placeOrder(request, response) {
-  if (!Array.isArray(request.body.items) || request.body.items.length === 0 || request.body.items.length > 30) {
-    return response.status(400).json({ message: 'Add between 1 and 30 items to your order.' })
+export function validateOrderItems(entries) {
+  if (!Array.isArray(entries) || entries.length === 0 || entries.length > 30) {
+    return { error: 'Add between 1 and 30 items to your order.' }
   }
 
   const quantities = new Map()
-  for (const entry of request.body.items) {
+  for (const entry of entries) {
     const id = entry?.menuItemId
     const quantity = entry?.quantity
     if (!mongoose.isValidObjectId(id) || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
-      return response.status(400).json({ message: 'Each item needs a valid menu item ID and quantity.' })
+      return { error: 'Each item needs a valid menu item ID and quantity.' }
     }
-    const combinedQuantity = (quantities.get(id) || 0) + quantity
+    const normalizedId = id.toString()
+    const combinedQuantity = (quantities.get(normalizedId) || 0) + quantity
     if (combinedQuantity > 50) {
-      return response.status(400).json({ message: 'An item quantity cannot exceed 50.' })
+      return { error: 'An item quantity cannot exceed 50.' }
     }
-    quantities.set(id, combinedQuantity)
+    quantities.set(normalizedId, combinedQuantity)
+  }
+  return { quantities }
+}
+
+export function validatePaymentMethod(paymentMethod) {
+  return paymentMethod === 'counter' ? null : 'Pay at the café is the only available payment method.'
+}
+
+export async function placeOrder(request, response) {
+  const body = request.body || {}
+  const { error, quantities } = validateOrderItems(body.items)
+  if (error) {
+    return response.status(400).json({ message: error })
+  }
+  const paymentError = validatePaymentMethod(body.paymentMethod)
+  if (paymentError) {
+    return response.status(400).json({ message: paymentError })
   }
 
   const menuItems = await MenuItem.find({
@@ -50,6 +68,8 @@ export async function placeOrder(request, response) {
     studentPhone: request.user.phone,
     items,
     total: totalCents / 100,
+    paymentMethod: 'counter',
+    paymentStatus: 'pending',
     status: 'In Progress',
   })
 
