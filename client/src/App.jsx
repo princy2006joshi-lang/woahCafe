@@ -739,6 +739,85 @@ function StudentOrderHistoryPage() {
   )
 }
 
+function StudentProfilePage({ user, onProfileUpdated }) {
+  const [form, setForm] = useState({ name: user.name, phone: user.phone || '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  function updateField(event) {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+    setError('')
+    setNotice('')
+  }
+
+  async function submit(event) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data } = await api.patch('/api/auth/profile', form)
+      onProfileUpdated(data.user)
+      setForm({ name: data.user.name, phone: data.user.phone || '' })
+      setNotice('Your profile has been updated.')
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not update your profile. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="menu-page">
+      <div className="menu-page-heading">
+        <div>
+          <p className="eyebrow">YOUR ACCOUNT</p>
+          <h1 className="menu-page-title">Student profile</h1>
+          <p className="menu-page-copy">Update your name or phone number. Your institutional email cannot be changed here.</p>
+        </div>
+        <Link className="secondary-button" to="/">Back to home</Link>
+      </div>
+
+      <form className="profile-form" onSubmit={submit}>
+        <label>
+          Full name
+          <input
+            autoComplete="name"
+            maxLength={100}
+            name="name"
+            onChange={updateField}
+            required
+            value={form.name}
+          />
+        </label>
+        <label>
+          Institutional email
+          <input autoComplete="email" readOnly value={user.email} />
+          <span className="form-hint">Email is read-only and must remain tied to your student account.</span>
+        </label>
+        <label>
+          Phone number
+          <input
+            autoComplete="tel"
+            maxLength={30}
+            name="phone"
+            onChange={updateField}
+            required
+            type="tel"
+            value={form.phone}
+          />
+        </label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {notice && <p className="menu-notice" role="status">{notice}</p>}
+        <button className="primary-button" disabled={saving} type="submit">
+          {saving ? 'Saving…' : 'Save profile'}
+        </button>
+      </form>
+    </section>
+  )
+}
+
 function KitchenOrdersPage() {
   const [view, setView] = useState('active')
   const [orders, setOrders] = useState([])
@@ -1016,6 +1095,7 @@ function HomePage({ user, health, onLogout, loggingOut, logoutError, cartCount }
           ) : (
             <div className="welcome-actions">
               <Link className="primary-button button-link" to="/menu">Browse menu</Link>
+              <Link className="secondary-button button-link" to="/profile">Edit profile</Link>
               <Link className="secondary-button button-link" to="/orders">Order history</Link>
               <Link className="secondary-button button-link" to="/cart">
                 Cart{cartCount > 0 ? ` (${cartCount})` : ''}
@@ -1281,9 +1361,18 @@ export default function App() {
         </Link>
         <div className="topbar-actions">
           {user?.role === 'student' && (
-            <Link className="topbar-cart" to="/cart" aria-label={`Cart with ${cartCount} items`}>
-              Cart{cartCount > 0 ? ` (${cartCount})` : ''}
-            </Link>
+            <>
+              <Link
+                aria-current={location.pathname === '/profile' ? 'page' : undefined}
+                className="topbar-cart"
+                to="/profile"
+              >
+                Profile
+              </Link>
+              <Link className="topbar-cart" to="/cart" aria-label={`Cart with ${cartCount} items`}>
+                Cart{cartCount > 0 ? ` (${cartCount})` : ''}
+              </Link>
+            </>
           )}
           <span className="campus-label">MADE FOR CAMPUS</span>
         </div>
@@ -1372,6 +1461,12 @@ export default function App() {
             <Route
               path="/orders"
               element={user?.role === 'student' ? <StudentOrderHistoryPage /> : <Navigate to={user ? '/' : '/login'} replace />}
+            />
+            <Route
+              path="/profile"
+              element={user?.role === 'student'
+                ? <StudentProfilePage user={user} onProfileUpdated={setUser} />
+                : <Navigate to={user ? '/' : '/login'} replace />}
             />
             <Route
               path="/kitchen/orders"

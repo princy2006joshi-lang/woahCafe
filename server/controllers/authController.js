@@ -106,3 +106,44 @@ export async function logout(request, response) {
 export async function getCurrentUser(request, response) {
   return response.json({ user: publicUser(request.user) })
 }
+
+export function validateStudentProfile(fields) {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+    return { error: 'Submit profile details to update.' }
+  }
+
+  const allowedFields = ['name', 'phone']
+  const keys = Object.keys(fields)
+  if (!keys.length || keys.some((key) => !allowedFields.includes(key))) {
+    return { error: 'Only your name and phone number can be updated.' }
+  }
+  if ('name' in fields && (
+    typeof fields.name !== 'string'
+    || !fields.name.trim()
+    || fields.name.trim().length > 100
+  )) {
+    return { error: 'Name is required and must be no more than 100 characters.' }
+  }
+  if ('phone' in fields && (
+    typeof fields.phone !== 'string'
+    || !/^\+?[\d\s().-]{7,30}$/.test(fields.phone.trim())
+  )) {
+    return { error: 'Enter a valid phone number.' }
+  }
+  return { updates: Object.fromEntries(keys.map((key) => [key, fields[key].trim()])) }
+}
+
+export async function updateStudentProfile(request, response) {
+  if (request.user.role !== 'student') {
+    return response.status(403).json({ message: 'Only student profile details can be updated here.' })
+  }
+
+  const { error, updates } = validateStudentProfile(request.body)
+  if (error) {
+    return response.status(400).json({ message: error })
+  }
+
+  request.user.set(updates)
+  await request.user.save()
+  return response.json({ user: publicUser(request.user) })
+}

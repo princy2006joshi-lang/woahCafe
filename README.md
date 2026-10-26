@@ -61,6 +61,7 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 ## API outline
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `PATCH /api/auth/profile` (authenticated student; name and phone only)
 - `GET /api/menu` (available items only; optional `category` filter)
 - `POST /api/orders`, `GET /api/orders/my`, `GET /api/orders/:orderId`
 - `GET /api/kitchen/payments/counter` (unpaid counter orders; kitchen role only)
@@ -77,7 +78,7 @@ Authentication uses an HTTP-only cookie. Student order queries are scoped to the
 
 Students can add available menu items to `/cart`, adjust quantities, and place orders with pay-at-café checkout. Cart contents are saved in browser storage separately for each signed-in student and restored after a reload on that browser. The server recalculates prices and totals and rejects unavailable items; payment remains pending until kitchen staff record receipt at `/kitchen/payments`. Payment state is stored separately from preparation status. New orders move through `Queued → In Progress → Ready for Pickup → Completed`; kitchen staff can track and update active orders at `/kitchen/orders`, which refreshes every five seconds. Students can view their scoped order history at `/orders`; history and individual order tracking refresh automatically, with a ready-for-pickup alert when applicable. Online checkout is not available yet and is planned for Part 8.
 
-Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Email ownership is not verified because no email delivery service is configured.
+Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Students can update their name and phone at `/profile`; the verified account email and role are read-only. Email ownership is not verified because no email delivery service is configured.
 
 ## Checks
 

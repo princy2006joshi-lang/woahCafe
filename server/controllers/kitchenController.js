@@ -1,6 +1,23 @@
 import Order from '../models/Order.js'
 import { nextOrderStatus, orderStatuses } from '../utils/orderStatus.js'
 
+export function counterPaymentUpdate(orderId, staffId, paidAt) {
+  return {
+    filter: {
+      orderId,
+      paymentMethod: 'counter',
+      paymentStatus: 'pending',
+    },
+    update: {
+      $set: {
+        paymentStatus: 'paid',
+        paidAt,
+        paymentRecordedBy: staffId,
+      },
+    },
+  }
+}
+
 export async function listKitchenOrders(request, response) {
   const view = request.query.view === 'history' ? 'history' : 'active'
   const statusFilter = view === 'history'
@@ -45,19 +62,10 @@ export async function listCounterPayments(request, response) {
 }
 
 export async function recordCounterPayment(request, response) {
+  const paymentUpdate = counterPaymentUpdate(request.params.id, request.user._id, new Date())
   const order = await Order.findOneAndUpdate(
-    {
-      orderId: request.params.id,
-      paymentMethod: 'counter',
-      paymentStatus: 'pending',
-    },
-    {
-      $set: {
-        paymentStatus: 'paid',
-        paidAt: new Date(),
-        paymentRecordedBy: request.user._id,
-      },
-    },
+    paymentUpdate.filter,
+    paymentUpdate.update,
     { new: true, runValidators: true },
   )
   if (order) {
