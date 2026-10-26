@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { mock, test } from 'node:test'
 import Order from '../models/Order.js'
-import { counterPaymentUpdate, recordCounterPayment } from './kitchenController.js'
+import {
+  counterPaymentUpdate,
+  listKitchenOrders,
+  recordCounterPayment,
+  updateOrderStatus,
+} from './kitchenController.js'
 
 function responseRecorder() {
   return {
@@ -75,4 +80,44 @@ test('counter-payment handler rejects a duplicate payment without recording it a
 
   assert.equal(response.statusCode, 409)
   assert.match(response.body.message, /already been recorded/)
+})
+
+test('kitchen active order list excludes unpaid Razorpay orders', async (t) => {
+  let appliedFilter
+  t.mock.method(Order, 'find', (filter) => {
+    appliedFilter = filter
+    return {
+      sort() {
+        return { lean: async () => [] }
+      },
+    }
+  })
+  const response = responseRecorder()
+
+  await listKitchenOrders({ query: { view: 'active' } }, response)
+
+  assert.deepEqual(appliedFilter.$or, [
+    { paymentMethod: 'counter' },
+    { paymentMethod: 'razorpay', paymentStatus: 'paid' },
+  ])
+  assert.equal(response.statusCode, 200)
+})
+
+test('kitchen cannot advance an online order before server-confirmed payment', async (t) => {
+  t.mock.method(Order, 'findOne', () => ({
+    select: async () => ({
+      status: 'Queued',
+      paymentMethod: 'razorpay',
+      paymentStatus: 'pending',
+    }),
+  }))
+  const response = responseRecorder()
+
+  await updateOrderStatus({
+    params: { id: 'order-reference' },
+    body: { status: 'In Progress' },
+  }, response)
+
+  assert.equal(response.statusCode, 409)
+  assert.match(response.body.message, /after payment is confirmed/)
 })

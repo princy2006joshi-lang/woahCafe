@@ -17,7 +17,9 @@ Woah Cafe is a student ordering and kitchen order-tracking app. The React client
    [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
    ```
 
-4. In Terminal 1, start the API from its own folder. Use this command, not `npx nodemon index.js`:
+4. To enable online checkout, create API keys in the Razorpay Dashboard and set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in `server/.env`. Use test-mode keys while testing and enable automatic payment capture in the Razorpay Dashboard. The secret stays on the server and must never be added to the client or committed. Online checkout returns a clear configuration error until both values are set.
+
+5. In Terminal 1, start the API from its own folder. Use this command, not `npx nodemon index.js`:
 
    ```powershell
    cd C:\Documents\Cafe\hostel-cafe\server
@@ -25,7 +27,7 @@ Woah Cafe is a student ordering and kitchen order-tracking app. The React client
    npm run dev
    ```
 
-5. In Terminal 2, start the client from its own folder:
+6. In Terminal 2, start the client from its own folder:
 
    ```powershell
    cd C:\Documents\Cafe\hostel-cafe\client
@@ -33,7 +35,7 @@ Woah Cafe is a student ordering and kitchen order-tracking app. The React client
    npm run dev
    ```
 
-6. Open the Vite URL printed by the client, normally `http://localhost:5173`.
+7. Open the Vite URL printed by the client, normally `http://localhost:5173`.
 
 Check `http://localhost:5000/api/health`. It should say `"database":"connected"`. If it says `disconnected`, confirm `server/.env` exists, the Atlas database user/password are correct, and your IP is allowed in Atlas Network Access. MongoDB creates the database and collections automatically on the first real write.
 
@@ -43,7 +45,7 @@ To add the 30 quick-to-prepare starter menu items (five each for burgers, sandwi
 npm run seed:menu
 ```
 
-The seed only inserts items that are not already present by name and category. Re-running it does not overwrite prices, descriptions, or availability changed by kitchen staff.
+The seed only inserts items that are not already present by name and category. Re-running it does not overwrite prices, descriptions, custom image URLs, or availability; it fills in the curated Unsplash food photographs only where an existing item's image URL is blank. Each of the 30 starter dishes has its own verified food photograph URL. If an image host is unavailable, the menu falls back to a local category illustration. Students can browse all dishes or filter the menu by category.
 
 ## Create the private kitchen login
 
@@ -67,6 +69,10 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 - `GET /api/kitchen/payments/counter` (unpaid counter orders; kitchen role only)
 - `PATCH /api/kitchen/orders/:orderId/payment` (record received counter payment; kitchen role only)
 - `POST /api/orders` accepts `items: [{ menuItemId, quantity }]` and `paymentMethod: "counter"`; prices are read from MongoDB, never from the request.
+- `POST /api/orders` also accepts `paymentMethod: "razorpay"` and creates a server-priced Razorpay order.
+- `POST /api/orders/:orderId/payments/attempt` starts or resumes checkout for the authenticated student's unpaid online order.
+- `POST /api/orders/:orderId/payments/verify` verifies the signed payment and confirms its captured amount/currency with Razorpay before marking the order paid.
+- `POST /api/orders/:orderId/payments/failure` records a failed attempt only after confirming the failed payment with Razorpay.
 - `GET /api/kitchen/orders?view=active|history`
 - `PATCH /api/kitchen/orders/:orderId/status`
 - `GET /api/kitchen/menu` (all menu items; kitchen role only)
@@ -76,7 +82,7 @@ The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_P
 
 Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Signed-in students can browse currently available items at `/menu`; kitchen staff can add, edit, remove, and toggle availability at `/kitchen/menu`. Menu items can include an optional HTTP(S) image URL. Removing a menu item does not delete historical orders or their saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
 
-Students can add available menu items to `/cart`, adjust quantities, and place orders with pay-at-café checkout. Cart contents are saved in browser storage separately for each signed-in student and restored after a reload on that browser. The server recalculates prices and totals and rejects unavailable items; payment remains pending until kitchen staff record receipt at `/kitchen/payments`. Payment state is stored separately from preparation status. New orders move through `Queued → In Progress → Ready for Pickup → Completed`; kitchen staff can track and update active orders at `/kitchen/orders`, which refreshes every five seconds. Students can view their scoped order history at `/orders`; history and individual order tracking refresh automatically, with a ready-for-pickup alert when applicable. Online checkout is not available yet and is planned for Part 8.
+Students can add available menu items to `/cart`, adjust quantities, and pay at the café or online with Razorpay. Cart contents are saved in browser storage separately for each signed-in student and restored after a reload on that browser. The server recalculates prices and totals and rejects unavailable items. Counter payments remain pending until kitchen staff record receipt at `/kitchen/payments`; online payments are marked paid only after server-side signature and captured-payment verification. Failed attempts remain separate from preparation status and can be retried from the order page. Unpaid online orders are hidden from kitchen active orders and cannot advance through preparation. Kitchen staff can track eligible active orders at `/kitchen/orders`, which refreshes every five seconds. Students can view their scoped order history at `/orders`; history and individual order tracking refresh automatically, with a ready-for-pickup alert when applicable.
 
 Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Students can update their name and phone at `/profile`; the verified account email and role are read-only. Email ownership is not verified because no email delivery service is configured.
 

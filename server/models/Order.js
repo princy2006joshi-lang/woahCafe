@@ -29,18 +29,20 @@ const orderSchema = new mongoose.Schema(
     total: { type: Number, required: true, min: 0 },
     paymentMethod: {
       type: String,
-      enum: ['counter'],
+      enum: ['counter', 'razorpay'],
       default: 'counter',
       required: true,
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid'],
+      enum: ['pending', 'paid', 'failed'],
       default: 'pending',
       required: true,
     },
     paidAt: { type: Date, default: null },
     paymentRecordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    razorpayOrderId: { type: String, default: null },
+    razorpayPaymentId: { type: String, default: null },
     status: {
       type: String,
       enum: ['Queued', 'In Progress', 'Ready for Pickup', 'Completed', 'Completed / Taken'],

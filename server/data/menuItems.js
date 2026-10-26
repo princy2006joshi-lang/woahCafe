@@ -179,6 +179,66 @@ const menuItems = [
     description: 'Light omelette with egg whites, vegetables and herbs. Ready in about 8 minutes.',
     price: 79,
   },
-].map((item) => ({ ...item, imageUrl: '', available: true }))
+]
 
-export default menuItems
+const menuPhotos = {
+  Burgers: [
+    'photo-1568901346375-23c9450c58cd',
+    'photo-1550547660-d9450f859349',
+    'photo-1551782450-a2132b4ba21d',
+    'photo-1571091718767-18b5b1457add',
+    'photo-1565299507177-b0ac66763828',
+  ],
+  Sandwiches: [
+    'photo-1528735602780-2552fd46c7af',
+    'photo-1509722747041-616f39b57569',
+    'photo-1554433607-66b5efe9d304',
+    'photo-1482049016688-2d3e1b311543',
+    'photo-1484723091739-30a097e8f929',
+  ],
+  Beverages: [
+    'photo-1509042239860-f550ce710b93',
+    'photo-1461023058943-07fcbe16d735',
+    'photo-1517701604599-bb29b565090c',
+    'photo-1511920170033-f8396924c348',
+    'photo-1498804103079-a6351b050096',
+  ],
+  Maggis: [
+    'photo-1569718212165-3a8278d5f624',
+    'photo-1585032226651-759b368d7246',
+    'photo-1557872943-16a5ac26437e',
+    'photo-1588013273468-315fd88ea34c',
+    'photo-1552611052-33e04de081de',
+  ],
+  Rolls: [
+    'photo-1626700051175-6818013e1d4f',
+    'photo-1551504734-5ee1c4a1479b',
+    'photo-1611250188496-e966043a0629',
+    'photo-1476224203421-9ac39bcb3327',
+    'photo-1512058564366-18510be2db19',
+  ],
+  Omelettes: [
+    'photo-1525351484163-7529414344d8',
+    'photo-1510693206972-df098062cb71',
+    'photo-1506084868230-bb9d95c24759',
+    'photo-1490645935967-10de6ba17061',
+    'photo-1504754524776-8f4f37790ca0',
+  ],
+}
+
+export const menuImageUrl = (photoId) => (
+  `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=960&q=82`
+)
+
+const categoryPhotoIndex = new Map()
+const menuItemsWithPhotos = menuItems.map((item) => {
+  const index = categoryPhotoIndex.get(item.category) || 0
+  categoryPhotoIndex.set(item.category, index + 1)
+  return {
+    ...item,
+    imageUrl: menuImageUrl(menuPhotos[item.category][index]),
+    available: true,
+  }
+})
+
+export default menuItemsWithPhotos

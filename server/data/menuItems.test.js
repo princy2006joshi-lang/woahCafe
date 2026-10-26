@@ -11,7 +11,9 @@ test('menu seed contains five quick-to-prepare options in each requested categor
     assert.equal(items.length, 5, `${category} should contain five items`)
     assert.ok(items.every((item) => item.available && item.price > 0))
     assert.ok(items.every((item) => /about (?:[1-9]|10) minutes/.test(item.description)))
+    assert.ok(items.every((item) => /^https:\/\/images\.unsplash\.com\/photo-[\w-]+\?/.test(item.imageUrl)))
   }
 
   assert.equal(new Set(menuItems.map((item) => `${item.category}:${item.name}`)).size, 30)
+  assert.equal(new Set(menuItems.map((item) => item.imageUrl)).size, 30)
 })

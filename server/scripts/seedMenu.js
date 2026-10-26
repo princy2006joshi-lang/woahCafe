@@ -17,8 +17,13 @@ try {
       upsert: true,
     },
   })))
+  const imageUpdates = await Promise.all(menuItems.map((item) => MenuItem.updateOne(
+    { name: item.name, category: item.category, imageUrl: { $in: ['', null] } },
+    { $set: { imageUrl: item.imageUrl } },
+  )))
+  const imagesAdded = imageUpdates.reduce((total, update) => total + update.modifiedCount, 0)
 
-  console.log(`Menu seed complete: ${result.upsertedCount} added, ${result.matchedCount} already present.`)
+  console.log(`Menu seed complete: ${result.upsertedCount} added, ${result.matchedCount} already present, ${imagesAdded} images added.`)
 } catch (error) {
   console.error(`Could not seed menu: ${error.message}`)
   process.exitCode = 1

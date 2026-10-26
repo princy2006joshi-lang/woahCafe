@@ -3,6 +3,46 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import api from './axiosCalls/axios.js'
 import { clearSavedCart, loadSavedCart, saveCart } from './cartStorage.js'
 
+let razorpayScriptPromise
+
+function loadRazorpayScript() {
+  if (window.Razorpay) return Promise.resolve()
+  if (razorpayScriptPromise) return razorpayScriptPromise
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = resolve
+    script.onerror = () => {
+      script.remove()
+      razorpayScriptPromise = null
+      reject(new Error('Could not load Razorpay Checkout. Check your connection and try again.'))
+    }
+    document.head.appendChild(script)
+  })
+  return razorpayScriptPromise
+}
+
+function openRazorpayCheckout({ order, payment, user, onSuccess, onFailure, onDismiss }) {
+  const checkout = new window.Razorpay({
+    key: payment.keyId,
+    amount: payment.amount,
+    currency: payment.currency,
+    name: 'Woah Cafe',
+    description: `Order ${order.orderId}`,
+    order_id: payment.orderId,
+    prefill: {
+      name: user.name,
+      email: user.email,
+      contact: user.phone,
+    },
+    handler: onSuccess,
+    modal: { ondismiss: onDismiss },
+  })
+  checkout.on('payment.failed', onFailure)
+  checkout.open()
+}
+
 function ServiceStatus({ health }) {
   return (
     <aside className={`service-card service-card--${health.state}`} aria-live="polite">
@@ -52,89 +92,100 @@ function AuthForm({ mode, onLogin, onRegister, initialError }) {
 
   return (
     <section className="auth-card" aria-labelledby="auth-title">
-      <p className="eyebrow">{isKitchenLogin ? 'STAFF ACCESS' : 'CAMPUS CAFÉ'}</p>
-      <h1 className="auth-title" id="auth-title">{title}</h1>
-      <p className="auth-copy">
-        {isRegistration
-          ? 'Register with your Scaler student email to get started.'
-          : isKitchenLogin
-            ? 'Sign in with the private kitchen account.'
-            : 'Sign in to your Woah Cafe account.'}
-      </p>
+      <aside className="auth-illustration" aria-hidden="true">
+        <span className="auth-stamp">WOAH CAFÉ · CAMPUS COUNTER</span>
+        <img src="https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=85" alt="" />
+        <div className="auth-illustration-note">
+          <span>GOOD BREAKS START HERE</span>
+          <strong>A little good<br />in the middle<br />of your day.</strong>
+        </div>
+        <span className="auth-illustration-index">NO. 01 / OPEN DAILY</span>
+      </aside>
+      <div className="auth-content">
+        <p className="eyebrow">{isKitchenLogin ? 'STAFF ACCESS' : 'CAMPUS CAFÉ'}</p>
+        <h1 className="auth-title" id="auth-title">{title}</h1>
+        <p className="auth-copy">
+          {isRegistration
+            ? 'Register with your Scaler student email to get started.'
+            : isKitchenLogin
+              ? 'Sign in with the private kitchen account.'
+              : 'Sign in to your Woah Cafe account.'}
+        </p>
 
-      <form className="auth-form" onSubmit={handleSubmit}>
-        {isRegistration && (
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {isRegistration && (
+            <label>
+              Full name
+              <input
+                autoComplete="name"
+                maxLength={100}
+                name="name"
+                onChange={updateField}
+                required
+                value={form.name}
+              />
+            </label>
+          )}
           <label>
-            Full name
+            Email address
             <input
-              autoComplete="name"
-              maxLength={100}
-              name="name"
+              autoComplete="username"
+              name="email"
               onChange={updateField}
+              placeholder={isKitchenLogin ? 'Kitchen account email' : 'you@sst.scaler.com'}
               required
-              value={form.name}
+              type="email"
+              value={form.email}
             />
           </label>
-        )}
-        <label>
-          Email address
-          <input
-            autoComplete="username"
-            name="email"
-            onChange={updateField}
-            placeholder={isKitchenLogin ? 'Kitchen account email' : 'you@sst.scaler.com'}
-            required
-            type="email"
-            value={form.email}
-          />
-        </label>
-        {isRegistration && (
+          {isRegistration && (
+            <label>
+              Phone number
+              <input
+                autoComplete="tel"
+                maxLength={30}
+                name="phone"
+                onChange={updateField}
+                required
+                type="tel"
+                value={form.phone}
+              />
+            </label>
+          )}
           <label>
-            Phone number
+            Password
             <input
-              autoComplete="tel"
-              maxLength={30}
-              name="phone"
+              autoComplete={isRegistration ? 'new-password' : 'current-password'}
+              minLength={isRegistration ? 8 : undefined}
+              name="password"
               onChange={updateField}
               required
-              type="tel"
-              value={form.phone}
+              type="password"
+              value={form.password}
             />
           </label>
-        )}
-        <label>
-          Password
-          <input
-            autoComplete={isRegistration ? 'new-password' : 'current-password'}
-            minLength={isRegistration ? 8 : undefined}
-            name="password"
-            onChange={updateField}
-            required
-            type="password"
-            value={form.password}
-          />
-        </label>
-        {isRegistration && (
-          <p className="form-hint">Use an email address ending in @sst.scaler.com. Passwords must be at least 8 characters.</p>
-        )}
+          {isRegistration && (
+            <p className="form-hint">Use an email address ending in @sst.scaler.com. Passwords must be at least 8 characters.</p>
+          )}
 
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary-button" disabled={submitting} type="submit">
-          {submitting ? 'Please wait…' : isRegistration ? 'Create account' : 'Sign in'}
-        </button>
-      </form>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button className="primary-button" disabled={submitting} type="submit">
+            {submitting ? 'Please wait…' : isRegistration ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
 
-      <div className="auth-links">
-        {isRegistration ? (
-          <p>Already registered? <Link to="/login">Sign in</Link></p>
-        ) : isKitchenLogin ? (
-          <p><Link to="/login">Student sign in</Link></p>
-        ) : (
-          <>
-            <p>New to Woah Cafe? <Link to="/register">Create a student account</Link></p>
-            <p><Link to="/kitchen/login">Kitchen staff sign in</Link></p>
-          </>
-        )}
+        <div className="auth-links">
+          {isRegistration ? (
+            <p>Already registered? <Link to="/login">Sign in</Link></p>
+          ) : isKitchenLogin ? (
+            <p><Link to="/login">Student sign in</Link></p>
+          ) : (
+            <>
+              <p>New to Woah Cafe? <Link to="/register">Create a student account</Link></p>
+              <p><Link to="/kitchen/login">Kitchen staff sign in</Link></p>
+            </>
+          )}
+        </div>
       </div>
     </section>
   )
@@ -223,24 +274,50 @@ function MenuItemEditor({ initialItem, onSave, onCancel, saving }) {
   )
 }
 
-function MenuItemImage({ item }) {
-  const [failed, setFailed] = useState(false)
+const categoryPhotoIds = {
+  burgers: ['photo-1568901346375-23c9450c58cd', 'photo-1550547660-d9450f859349'],
+  sandwiches: ['photo-1528735602780-2552fd46c7af', 'photo-1509722747041-616f39b57569'],
+  beverages: ['photo-1509042239860-f550ce710b93', 'photo-1461023058943-07fcbe16d735'],
+  maggis: ['photo-1569718212165-3a8278d5f624', 'photo-1585032226651-759b368d7246'],
+  rolls: ['photo-1626700051175-6818013e1d4f', 'photo-1551504734-5ee1c4a1479b'],
+  omelettes: ['photo-1525351484163-7529414344d8', 'photo-1510693206972-df098062cb71'],
+}
 
-  if (!item.imageUrl || failed) {
+function MenuItemImage({ item }) {
+  const categoryKey = item.category.toLowerCase().includes('sandwich') ? 'sandwiches'
+    : item.category.toLowerCase().includes('beverage') ? 'beverages'
+      : item.category.toLowerCase().includes('maggi') ? 'maggis'
+        : item.category.toLowerCase().includes('roll') ? 'rolls'
+          : item.category.toLowerCase().includes('omelette') ? 'omelettes'
+            : 'burgers'
+  const nameSeed = [...item.name].reduce((seed, character) => seed + character.charCodeAt(0), 0)
+  const fallbackPhoto = categoryPhotoIds[categoryKey][nameSeed % categoryPhotoIds[categoryKey].length]
+  const imageSources = [
+    item.imageUrl,
+    `https://images.unsplash.com/${fallbackPhoto}?auto=format&fit=crop&w=960&q=82`,
+    `/menu-art/${categoryKey}.svg`,
+  ].filter((source, index, sources) => source && sources.indexOf(source) === index)
+  const [sourceIndex, setSourceIndex] = useState(0)
+
+  useEffect(() => {
+    setSourceIndex(0)
+  }, [item._id, item.category, item.imageUrl])
+
+  if (sourceIndex >= imageSources.length) {
     return (
-      <div className="menu-item-image menu-item-image--empty" aria-hidden="true">
-        <span>woah café</span>
+      <div className={`menu-item-image menu-item-image--empty menu-item-art--${categoryKey}`} aria-hidden="true">
+        <span>{item.category}</span>
       </div>
     )
   }
 
   return (
     <img
-      className="menu-item-image"
-      src={item.imageUrl}
+      className={`menu-item-image menu-item-art--${categoryKey}`}
+      src={imageSources[sourceIndex]}
       alt={item.name}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setSourceIndex((index) => index + 1)}
     />
   )
 }
@@ -254,6 +331,7 @@ function MenuPage({ mode, cart, onAddToCart, onUpdateCartQuantity }) {
   const [editingId, setEditingId] = useState('')
   const [saving, setSaving] = useState(false)
   const [pendingId, setPendingId] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -275,6 +353,12 @@ function MenuPage({ mode, cart, onAddToCart, onUpdateCartQuantity }) {
 
     return () => controller.abort()
   }, [isKitchen])
+
+  const categories = [...new Set(items.map((item) => item.category))].sort((left, right) => left.localeCompare(right))
+  const visibleItems = items.filter((item) => (
+    (activeCategory === 'all' || item.category === activeCategory)
+    && (isKitchen || item.available)
+  ))
 
   async function saveItem(fields) {
     setSaving(true)
@@ -361,15 +445,48 @@ function MenuPage({ mode, cart, onAddToCart, onUpdateCartQuantity }) {
 
       {error && <p className="form-error menu-feedback" role="alert">{error}</p>}
       {notice && <p className="menu-notice menu-feedback" role="status">{notice}</p>}
+      {categories.length > 0 && (
+        <div className="menu-browse-tools">
+          <div className="menu-category-bar" aria-label="Filter menu by category" role="group">
+            <button
+              aria-pressed={activeCategory === 'all'}
+              className={`category-filter${activeCategory === 'all' ? ' category-filter--active' : ''}`}
+              onClick={() => setActiveCategory('all')}
+              type="button"
+            >
+              All dishes <span>{items.filter((item) => isKitchen || item.available).length}</span>
+            </button>
+            {categories.map((category) => {
+              const count = items.filter((item) => item.category === category && (isKitchen || item.available)).length
+              return (
+                <button
+                  aria-pressed={activeCategory === category}
+                  className={`category-filter${activeCategory === category ? ' category-filter--active' : ''}`}
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  type="button"
+                >
+                  {category} <span>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="menu-result-count">
+            <span>{String(visibleItems.length).padStart(2, '0')}</span> {visibleItems.length === 1 ? 'dish' : 'dishes'} on the {isKitchen ? 'menu' : 'counter'}
+          </p>
+        </div>
+      )}
       {loading ? (
         <p className="menu-empty" aria-live="polite">Loading menu…</p>
       ) : items.length === 0 ? (
         <p className="menu-empty">
           {isKitchen ? 'No menu items yet. Add an item using the form above.' : 'There are no available menu items right now.'}
         </p>
+      ) : visibleItems.length === 0 ? (
+        <p className="menu-empty">No dishes in this category right now.</p>
       ) : (
         <div className="menu-grid">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <article className={`menu-item${item.available ? '' : ' menu-item--unavailable'}`} key={item._id}>
               <MenuItemImage item={item} />
               <div className="menu-item-content">
@@ -446,7 +563,7 @@ function MenuPage({ mode, cart, onAddToCart, onUpdateCartQuantity }) {
   )
 }
 
-function CartPage({ cart, onUpdateQuantity, onRemoveItem, onClearCart }) {
+function CartPage({ cart, user, onUpdateQuantity, onRemoveItem, onClearCart }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('counter')
   const [submitting, setSubmitting] = useState(false)
@@ -464,7 +581,57 @@ function CartPage({ cart, onUpdateQuantity, onRemoveItem, onClearCart }) {
         paymentMethod,
       })
       onClearCart()
-      navigate(`/orders/${encodeURIComponent(data.order.orderId)}`)
+      const orderPath = `/orders/${encodeURIComponent(data.order.orderId)}`
+      if (!data.payment) {
+        navigate(orderPath)
+        return
+      }
+      try {
+        await loadRazorpayScript()
+        openRazorpayCheckout({
+          order: data.order,
+          payment: data.payment,
+          user,
+          onSuccess: async (paymentResponse) => {
+            try {
+              await api.post(`/api/orders/${encodeURIComponent(data.order.orderId)}/payments/verify`, {
+                paymentId: paymentResponse.razorpay_payment_id,
+                signature: paymentResponse.razorpay_signature,
+              })
+            } catch (requestError) {
+              navigate(orderPath, {
+                state: {
+                  paymentNotice: requestError.response?.data?.message
+                    || 'Could not verify the payment. Refresh the order before retrying.',
+                },
+              })
+              return
+            }
+            navigate(orderPath)
+          },
+          onFailure: async (failure) => {
+            const paymentId = failure?.error?.metadata?.payment_id
+            if (!paymentId) {
+              navigate(orderPath, { state: { paymentNotice: 'Payment was not completed. You can retry from this order.' } })
+              return
+            }
+            try {
+              await api.post(`/api/orders/${encodeURIComponent(data.order.orderId)}/payments/failure`, { paymentId })
+              navigate(orderPath, { state: { paymentNotice: 'Payment failed. You can retry from this order.' } })
+            } catch (requestError) {
+              navigate(orderPath, {
+                state: {
+                  paymentNotice: requestError.response?.data?.message
+                    || 'Could not confirm the payment result. Refresh the order before retrying.',
+                },
+              })
+            }
+          },
+          onDismiss: () => navigate(orderPath),
+        })
+      } catch {
+        navigate(orderPath)
+      }
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Could not place your order. Please try again.')
     } finally {
@@ -534,14 +701,27 @@ function CartPage({ cart, onUpdateQuantity, onRemoveItem, onClearCart }) {
                 <small>Pay at the counter when you pick up your order.</small>
               </span>
             </label>
-            <p className="payment-note">Online payment is not available yet.</p>
+            <label className="payment-option">
+              <input
+                checked={paymentMethod === 'razorpay'}
+                name="paymentMethod"
+                onChange={() => setPaymentMethod('razorpay')}
+                type="radio"
+                value="razorpay"
+              />
+              <span>
+                <strong>Pay online with Razorpay</strong>
+                <small>Complete payment securely before the café prepares your order.</small>
+              </span>
+            </label>
+            <p className="payment-note">Online payment requires Razorpay keys to be configured by the café.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
             <div className="cart-total">
               <span>Total</span>
               <strong>₹{total.toFixed(2)}</strong>
             </div>
             <button className="primary-button" disabled={submitting} type="submit">
-              {submitting ? 'Placing order…' : 'Place order'}
+              {submitting ? 'Starting checkout…' : paymentMethod === 'razorpay' ? 'Continue to payment' : 'Place order'}
             </button>
           </form>
         </div>
@@ -550,11 +730,14 @@ function CartPage({ cart, onUpdateQuantity, onRemoveItem, onClearCart }) {
   )
 }
 
-function OrderConfirmationPage() {
+function OrderConfirmationPage({ user }) {
   const { orderId } = useParams()
+  const location = useLocation()
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [paymentError, setPaymentError] = useState(location.state?.paymentNotice || '')
+  const [startingPayment, setStartingPayment] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -584,6 +767,53 @@ function OrderConfirmationPage() {
       clearInterval(interval)
     }
   }, [orderId])
+
+  async function retryOnlinePayment() {
+    setStartingPayment(true)
+    setPaymentError('')
+    try {
+      const { data } = await api.post(`/api/orders/${encodeURIComponent(orderId)}/payments/attempt`)
+      if (!data.payment) {
+        setOrder(data.order)
+        return
+      }
+      await loadRazorpayScript()
+      openRazorpayCheckout({
+        order: data.order,
+        payment: data.payment,
+        user,
+        onSuccess: async (paymentResponse) => {
+          try {
+            await api.post(`/api/orders/${encodeURIComponent(orderId)}/payments/verify`, {
+              paymentId: paymentResponse.razorpay_payment_id,
+              signature: paymentResponse.razorpay_signature,
+            })
+            setPaymentError('')
+          } catch (requestError) {
+            setPaymentError(requestError.response?.data?.message || 'Could not verify the payment. Check the order status before retrying.')
+          }
+        },
+        onFailure: async (failure) => {
+          const paymentId = failure?.error?.metadata?.payment_id
+          if (!paymentId) {
+            setPaymentError('Payment was not completed. You can retry from this order.')
+            return
+          }
+          try {
+            await api.post(`/api/orders/${encodeURIComponent(orderId)}/payments/failure`, { paymentId })
+            setPaymentError('Payment failed. You can retry from this order.')
+          } catch (requestError) {
+            setPaymentError(requestError.response?.data?.message || 'Could not confirm the payment result. Refresh the order before retrying.')
+          }
+        },
+        onDismiss: () => {},
+      })
+    } catch (requestError) {
+      setPaymentError(requestError.response?.data?.message || requestError.message || 'Could not start online payment.')
+    } finally {
+      setStartingPayment(false)
+    }
+  }
 
   return (
     <section className="menu-page">
@@ -620,8 +850,29 @@ function OrderConfirmationPage() {
               </div>
               <div className="payment-summary">
                 <span>Payment</span>
-                <span>Pay at the café · {order.paymentStatus === 'paid' ? 'Paid' : 'Due at pickup'}</span>
+                <span>
+                  {order.paymentMethod === 'razorpay' ? 'Online · Razorpay' : 'Pay at the café'}
+                  {' · '}
+                  {order.paymentStatus === 'paid'
+                    ? 'Paid'
+                    : order.paymentStatus === 'failed'
+                      ? 'Failed'
+                      : order.paymentMethod === 'razorpay' ? 'Payment pending' : 'Due at pickup'}
+                </span>
               </div>
+              {order.paymentMethod === 'razorpay' && order.paymentStatus !== 'paid' && (
+                <>
+                  {paymentError && <p className="form-error" role="alert">{paymentError}</p>}
+                  <button
+                    className="primary-button"
+                    disabled={startingPayment}
+                    onClick={retryOnlinePayment}
+                    type="button"
+                  >
+                    {startingPayment ? 'Starting checkout…' : order.paymentStatus === 'failed' ? 'Retry online payment' : 'Pay online now'}
+                  </button>
+                </>
+              )}
               <div className="payment-summary">
                 <span>Preparation</span>
                 <span>{order.status}</span>
@@ -725,7 +976,15 @@ function StudentOrderHistoryPage() {
                 ))}
               </ul>
               <div className="student-order-footer">
-                <span>Pay at the café · {order.paymentStatus === 'paid' ? 'Paid' : 'Due at pickup'}</span>
+                <span>
+                  {order.paymentMethod === 'razorpay' ? 'Online · Razorpay' : 'Pay at the café'}
+                  {' · '}
+                  {order.paymentStatus === 'paid'
+                    ? 'Paid'
+                    : order.paymentStatus === 'failed'
+                      ? 'Failed'
+                      : order.paymentMethod === 'razorpay' ? 'Payment pending' : 'Due at pickup'}
+                </span>
                 <strong>₹{Number(order.total).toFixed(2)}</strong>
               </div>
               {order.status === 'Ready for Pickup' && (
@@ -1110,6 +1369,19 @@ function HomePage({ user, health, onLogout, loggingOut, logoutError, cartCount }
         </div>
       )}
 
+      <div className="welcome-art" aria-hidden="true">
+        <span className="welcome-art-index">W / 01</span>
+        <img
+          src="https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=1100&q=85"
+          alt=""
+        />
+        <div className="welcome-art-note">
+          <span>THE CAMPUS COUNTER</span>
+          <strong>Good things,<br />made fresh.</strong>
+        </div>
+        <span className="welcome-art-caption">Quick plates · good breaks</span>
+      </div>
+
       <ServiceStatus health={health} />
     </section>
   )
@@ -1374,6 +1646,13 @@ export default function App() {
               </Link>
             </>
           )}
+          {user?.role === 'kitchen' && (
+            <>
+              <Link className="topbar-cart" to="/kitchen/orders">Orders</Link>
+              <Link className="topbar-cart" to="/kitchen/menu">Menu</Link>
+              <Link className="topbar-cart" to="/kitchen/payments">Payments</Link>
+            </>
+          )}
           <span className="campus-label">MADE FOR CAMPUS</span>
         </div>
       </header>
@@ -1448,6 +1727,7 @@ export default function App() {
               element={user?.role === 'student' ? cartOwnerId === user.id ? (
                 <CartPage
                   cart={cart}
+                  user={user}
                   onClearCart={() => setCart({})}
                   onRemoveItem={removeCartItem}
                   onUpdateQuantity={updateCartQuantity}
@@ -1456,7 +1736,7 @@ export default function App() {
             />
             <Route
               path="/orders/:orderId"
-              element={user?.role === 'student' ? <OrderConfirmationPage /> : <Navigate to={user ? '/' : '/login'} replace />}
+              element={user?.role === 'student' ? <OrderConfirmationPage user={user} /> : <Navigate to={user ? '/' : '/login'} replace />}
             />
             <Route
               path="/orders"

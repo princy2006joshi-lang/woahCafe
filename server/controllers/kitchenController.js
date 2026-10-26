@@ -22,7 +22,13 @@ export async function listKitchenOrders(request, response) {
   const view = request.query.view === 'history' ? 'history' : 'active'
   const statusFilter = view === 'history'
     ? { status: { $in: ['Completed', 'Completed / Taken'] } }
-    : { status: { $nin: ['Completed', 'Completed / Taken'] } }
+    : {
+      status: { $nin: ['Completed', 'Completed / Taken'] },
+      $or: [
+        { paymentMethod: 'counter' },
+        { paymentMethod: 'razorpay', paymentStatus: 'paid' },
+      ],
+    }
   const orders = await Order.find(statusFilter).sort({ createdAt: view === 'history' ? -1 : 1 }).lean()
   return response.json({ orders })
 }
@@ -33,9 +39,12 @@ export async function updateOrderStatus(request, response) {
     return response.status(400).json({ message: 'Choose a valid order status.' })
   }
 
-  const currentOrder = await Order.findOne({ orderId: request.params.id }).select('status')
+  const currentOrder = await Order.findOne({ orderId: request.params.id }).select('status paymentMethod paymentStatus')
   if (!currentOrder) {
     return response.status(404).json({ message: 'Order not found.' })
+  }
+  if (currentOrder.paymentMethod === 'razorpay' && currentOrder.paymentStatus !== 'paid') {
+    return response.status(409).json({ message: 'Online orders can only be prepared after payment is confirmed.' })
   }
 
   if (nextOrderStatus(currentOrder.status) !== status) {
