@@ -1,91 +1,124 @@
-# Woah Cafe
+# Woah Cafe ☕
 
-Woah Cafe is a student ordering and kitchen order-tracking app. The React client and Express API are separate and have separate dependency folders. MongoDB stores accounts, menu items, and orders. The app does not insert sample menu items or orders.
+A campus café ordering website built to make ordering food and managing kitchen orders easier.
 
-## Requirements
+Students can browse the menu, place orders, choose how to pay, and track their food. Kitchen staff get a separate dashboard to manage menu items, process orders, and update preparation status.
 
-- Node.js 20.19 or newer
-- A MongoDB database, either a local MongoDB server or a MongoDB Atlas connection string
+**Demo video:** [Watch the Woah Cafe walkthrough on Google Drive](https://drive.google.com/drive/folders/1zWzmcAj1OI0KSdJ6fYzVOnLYl42DTCWk?usp=drive_link)
 
-## Configure and run
+## ✨ Features
 
-1. In MongoDB Atlas, create a database user and allow your current IP under **Network Access**. These are separate from your Atlas website login.
-2. In the cluster, choose **Connect → Drivers → Node.js** and copy the URI. Replace the username and password placeholders and use `/woah_cafe` as the database path. URL-encode special characters in the database password.
-3. Copy `server/.env.example` to `server/.env` and fill in `MONGODB_URI`. Set `JWT_SECRET` to a private random value. Generate one in PowerShell with:
+**For Students**
+- Register and log in using an `@sst.scaler.com` email address.
+- Browse food items, filter by category, and view prices and images.
+- Add items to the cart and update quantities.
+- Pay at the café counter or online through Razorpay.
+- View personal order history and track order status.
+- Receive an in-app alert when an order is ready for pickup.
 
-   ```powershell
-   [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-   ```
+**For Kitchen Staff**
+- Access a protected kitchen dashboard.
+- Add, edit, remove, and manage menu availability.
+- View eligible incoming orders and relevant student contact details.
+- Update preparation status from `Queued` to `Completed`.
+- Record counter payments.
 
-4. To enable online checkout, create API keys in the Razorpay Dashboard and set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in `server/.env`. Use test-mode keys while testing and enable automatic payment capture in the Razorpay Dashboard. The secret stays on the server and must never be added to the client or committed. Online checkout returns a clear configuration error until both values are set.
+**Behind the Scenes**
+- Prices and totals are calculated by the backend.
+- Online payments are verified server-side.
+- Payment status is separate from food preparation status.
+- Student orders are restricted to their owners.
+- Orders are stored in MongoDB and are not automatically deleted.
 
-5. In Terminal 1, start the API from its own folder. Use this command, not `npx nodemon index.js`:
+## 🛠️ Tech Stack
 
-   ```powershell
-   cd C:\Documents\Cafe\hostel-cafe\server
-   npm install
-   npm run dev
-   ```
+| Technology | Purpose |
+|---|---|
+| React + Vite | Frontend |
+| Tailwind CSS | Styling |
+| Node.js + Express | Backend API |
+| MongoDB + Mongoose | Database |
+| JWT + HttpOnly cookies | Authentication |
+| Razorpay | Online payments |
+| Vercel + Render | Frontend and backend hosting |
 
-6. In Terminal 2, start the client from its own folder:
+## 🚀 Run Locally
 
-   ```powershell
-   cd C:\Documents\Cafe\hostel-cafe\client
-   npm install
-   npm run dev
-   ```
+**Requirements:** Node.js 20.19 or newer and a MongoDB database.
 
-7. Open the Vite URL printed by the client, normally `http://localhost:5173`.
+**1. Configure the backend**
 
-Check `http://localhost:5000/api/health`. It should say `"database":"connected"`. If it says `disconnected`, confirm `server/.env` exists, the Atlas database user/password are correct, and your IP is allowed in Atlas Network Access. MongoDB creates the database and collections automatically on the first real write.
+Copy `server/.env.example` to `server/.env` and configure your MongoDB connection string and a secure `JWT_SECRET`. Add Razorpay test keys if you want to test online payments.
 
-The menu starts empty in a new database. Kitchen staff can add menu items through the protected kitchen menu page; each item can include an optional HTTP(S) image URL. Students can browse dishes and filter the menu by category.
-
-## Create the private kitchen login
-
-There is no kitchen registration page. After connecting MongoDB, temporarily set `KITCHEN_EMAIL`, `KITCHEN_PASSWORD` (at least 12 characters), and optionally `KITCHEN_NAME` in `server/.env`. Then run:
+**2. Start the backend**
 
 ```powershell
-cd C:\Documents\Cafe\hostel-cafe\server
+cd server
+npm install
+npm run dev
+```
+
+**3. Start the frontend**
+
+Open a second terminal:
+
+```powershell
+cd client
+npm install
+npm run dev
+```
+
+**4. Open the app**
+
+Visit `http://localhost:5173`.
+
+Check `http://localhost:5000/api/health` to verify the backend and database connection.
+
+## 🔐 Kitchen Account Setup
+
+Kitchen staff cannot register publicly. To create the kitchen account, temporarily configure `KITCHEN_EMAIL` and `KITCHEN_PASSWORD` in `server/.env`, then run:
+
+```powershell
+cd server
 npm run create:kitchen
 ```
 
-Remove `KITCHEN_PASSWORD` from `.env` after the account is created. The password is hashed before it is stored. Kitchen staff sign in at `/kitchen/login`.
+Remove the temporary password from the environment file after creating the account.
 
-The kitchen account is created only once; changing `KITCHEN_EMAIL` or `KITCHEN_PASSWORD` later does not change the stored account. The creation script will report an error if that email already exists. A `401` on sign-in means the submitted email/password does not match an account in the database currently used by the API.
+Kitchen login is available at `/kitchen/login`.
 
-## API outline
+## 🌐 Deployment
 
-- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-- `PATCH /api/auth/profile` (authenticated student; name and phone only)
-- `GET /api/menu` (available items only; optional `category` filter)
-- `POST /api/orders`, `GET /api/orders/my`, `GET /api/orders/:orderId`
-- `GET /api/kitchen/payments/counter` (unpaid counter orders; kitchen role only)
-- `PATCH /api/kitchen/orders/:orderId/payment` (record received counter payment; kitchen role only)
-- `POST /api/orders` accepts `items: [{ menuItemId, quantity }]` and `paymentMethod: "counter"`; prices are read from MongoDB, never from the request.
-- `POST /api/orders` also accepts `paymentMethod: "razorpay"` and creates a server-priced Razorpay order.
-- `POST /api/orders/:orderId/payments/attempt` starts or resumes checkout for the authenticated student's unpaid online order.
-- `POST /api/orders/:orderId/payments/verify` verifies the signed payment and confirms its captured amount/currency with Razorpay before marking the order paid.
-- `POST /api/orders/:orderId/payments/failure` records a failed attempt only after confirming the failed payment with Razorpay.
-- `GET /api/kitchen/orders?view=active|history`
-- `PATCH /api/kitchen/orders/:orderId/status`
-- `GET /api/kitchen/menu` (all menu items; kitchen role only)
-- `POST /api/kitchen/menu` (kitchen role only)
-- `PATCH /api/kitchen/menu/:id` (edit item fields or availability; kitchen role only)
-- `DELETE /api/kitchen/menu/:id` (kitchen role only)
+- **Frontend:** Vercel
+- **Backend:** Render
+- **Database:** MongoDB Atlas
 
-Authentication uses an HTTP-only cookie. Student order queries are scoped to the authenticated student on the server. Kitchen routes check the authenticated database role. Signed-in students can browse currently available items at `/menu`; kitchen staff can add, edit, remove, and toggle availability at `/kitchen/menu`. Menu items can include an optional HTTP(S) image URL. Removing a menu item does not delete historical orders or their saved item/price snapshots. Prices and totals are calculated by the API from available menu items at order time. Orders are never automatically deleted.
+Configure the required environment variables on Render and set the correct Render backend URL in `client/vercel.json` before deploying.
 
-Students can add available menu items to `/cart`, adjust quantities, and pay at the café or online with Razorpay. Cart contents are saved in browser storage separately for each signed-in student and restored after a reload on that browser. The server recalculates prices and totals and rejects unavailable items. Counter payments remain pending until kitchen staff record receipt at `/kitchen/payments`; online payments are marked paid only after server-side signature and captured-payment verification. Failed attempts remain separate from preparation status and can be retried from the order page. Unpaid online orders are hidden from kitchen active orders and cannot advance through preparation. Kitchen staff can track eligible active orders at `/kitchen/orders`, which refreshes every five seconds. Students can view their scoped order history at `/orders`; history and individual order tracking refresh automatically, with a ready-for-pickup alert when applicable.
+## 🔒 Security Notes
 
-Student registration is limited to addresses ending exactly in `@sst.scaler.com`; student accounts are also checked against this rule by the user model. Students can update their name and phone at `/profile`; the verified account email and role are read-only. Email ownership is not verified because no email delivery service is configured.
+- Student registration is restricted to the `@sst.scaler.com` domain, but email ownership is not verified.
+- Kitchen routes require an authenticated kitchen account.
+- Students can access only their own orders.
+- Passwords are hashed, and authentication uses an HttpOnly cookie.
+- Online payments are verified by the backend rather than trusted solely from the frontend.
 
-## Checks
+## ✅ Run Checks
+
+Build the frontend:
 
 ```powershell
-cd C:\Documents\Cafe\hostel-cafe\client
+cd client
 npm run build
+```
 
-cd C:\Documents\Cafe\hostel-cafe\server
+Run backend tests:
+
+```powershell
+cd server
 npm test
 ```
+
+---
+
+Built with ☕ for a simpler campus café experience.
