@@ -9,5 +9,7 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 test/
+**/*.test.js
+server/scripts/seedMenu.js
 .DS_Store
 Thumbs.db

@@ -39,13 +39,7 @@ Woah Cafe is a student ordering and kitchen order-tracking app. The React client
 
 Check `http://localhost:5000/api/health`. It should say `"database":"connected"`. If it says `disconnected`, confirm `server/.env` exists, the Atlas database user/password are correct, and your IP is allowed in Atlas Network Access. MongoDB creates the database and collections automatically on the first real write.
 
-To add the 30 quick-to-prepare starter menu items (five each for burgers, sandwiches, beverages, Maggi, rolls, and omelettes), run this once from the server folder:
-
-```powershell
-npm run seed:menu
-```
-
-The seed only inserts items that are not already present by name and category. Re-running it does not overwrite prices, descriptions, custom image URLs, or availability; it fills in the curated Unsplash food photographs only where an existing item's image URL is blank. Each of the 30 starter dishes has its own verified food photograph URL. If an image host is unavailable, the menu falls back to a local category illustration. Students can browse all dishes or filter the menu by category.
+The menu starts empty in a new database. Kitchen staff can add menu items through the protected kitchen menu page; each item can include an optional HTTP(S) image URL. Students can browse dishes and filter the menu by category.
 
 ## Create the private kitchen login
 
