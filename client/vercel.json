@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://woahcafe.onrender.com"
+      "destination": "https://woahcafe.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
